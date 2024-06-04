@@ -3,7 +3,7 @@ local configs = require "nvim-treesitter.configs"
 local parsers = require "nvim-treesitter.parsers"
 
 local shared = require "nvim-treesitter.textobjects.shared"
-local ts_utils = require "nvim-treesitter.ts_utils"
+local text_object = require "nvim-treesitter.textobjects.text-object"
 
 local M = {}
 
@@ -94,6 +94,27 @@ local val_or_return = function(val, opts)
   end
 end
 
+local function update_selection(_, textobject, selection_mode)
+  local v_table = { charwise = "v", linewise = "V", blockwise = "<C-v>" }
+  selection_mode = v_table[selection_mode] or selection_mode or "v"
+  selection_mode = vim.api.nvim_replace_termcodes(selection_mode, true, true, true)
+
+  local start_row, start_col, end_row, end_col = vim.treesitter.get_node_range(textobject)
+  local p1 = { start_row + 1, start_col }
+  local p2 = { end_row + 1, end_col }
+
+  if text_object.calc_endpoints(p1, p2, { mode = selection_mode }) then
+    local mode = api.nvim_get_mode()
+    if mode.mode ~= selection_mode then
+      api.nvim_cmd({ cmd = "normal", bang = true, args = { selection_mode } }, {})
+    end
+
+    api.nvim_win_set_cursor(0, p1)
+    vim.cmd "normal! o"
+    api.nvim_win_set_cursor(0, p2)
+  end
+end
+
 function M.select_textobject(query_string, query_group, keymap_mode)
   query_group = query_group or "textobjects"
   local lookahead = configs.get_module("textobjects.select").lookahead
@@ -111,7 +132,7 @@ function M.select_textobject(query_string, query_group, keymap_mode)
     then
       textobject = include_surrounding_whitespace(bufnr, textobject, selection_mode)
     end
-    ts_utils.update_selection(bufnr, textobject, selection_mode)
+    update_selection(bufnr, textobject, selection_mode)
   end
 end
 
